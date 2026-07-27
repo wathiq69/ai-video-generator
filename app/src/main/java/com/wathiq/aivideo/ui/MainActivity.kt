@@ -1,6 +1,7 @@
 package com.wathiq.aivideo.ui
 
 import android.content.ContentValues
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -48,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnGenerate.setOnClickListener {
             val prompt = binding.etPrompt.text.toString().trim()
             if (prompt.isEmpty() && selectedImageUri == null) {
-                Toast.makeText(this, "ط§ظ„ط±ط¬ط§ط، ظƒطھط§ط¨ط© ظˆطµظپ ط£ظˆ ط§ط®طھظٹط§ط± طµظˆط±ط©", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "الرجاء كتابة وصف أو اختيار صورة", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             generateVideo(prompt)
@@ -74,21 +75,19 @@ class MainActivity : AppCompatActivity() {
             val bitmaps = mutableListOf<Bitmap>()
             try {
                 withContext(Dispatchers.IO) {
-                    // 1. ط¥ط¶ط§ظپط© طµظˆط±ط© ط§ظ„ظ…ط³طھط®ط¯ظ… ط£ظˆظ„ط§ظ‹ (ط¥ط°ط§ ظˆط¬ط¯طھ)
                     selectedImageUri?.let { uri ->
                         val inputStream = contentResolver.openInputStream(uri)
                         val bmp = BitmapFactory.decodeStream(inputStream)
                         bmp?.let { bitmaps.add(it) }
                     }
 
-                    // 2. طھظˆظ„ظٹط¯ 3 طµظˆط± ط¥ط¶ط§ظپظٹط© ظ…ظ† Pollinations AI
                     val framesNeeded = 4 - bitmaps.size
                     for (i in 1..framesNeeded.coerceAtLeast(3)) {
                         val seed = Random.nextInt(1000, 9999)
                         val encodedPrompt = URLEncoder.encode(if (prompt.isEmpty()) "cinematic shot, abstract art" else prompt, "UTF-8")
                         val apiUrl = "https://image.pollinations.ai/prompt/$encodedPrompt?width=$width&height=$height&seed=$seed&nologo=true"
                         
-                        updateStatus("ط¬ط§ط±ظٹ طھظˆظ„ظٹط¯ ط§ظ„طµظˆط±ط© $i ظ…ظ† 3...")
+                        updateStatus("جاري توليد الصورة $i من 3...")
                         
                         val url = URL(apiUrl)
                         val conn = url.openConnection() as HttpURLConnection
@@ -106,12 +105,11 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (bitmaps.isEmpty()) {
-                    throw Exception("ظ„ظ… ظٹطھظ… طھظˆظ„ظٹط¯ ط£ظٹ طµظˆط±")
+                    throw Exception("لم يتم توليد أي صور")
                 }
 
-                updateStatus("ط¬ط§ط±ظٹ ط¯ظ…ط¬ ط§ظ„طµظˆط± ظپظٹ ظپظٹط¯ظٹظˆ...")
+                updateStatus("جاري دمج الصور في فيديو...")
                 
-                // 3. طھظˆظ„ظٹط¯ ط§ظ„ظپظٹط¯ظٹظˆ ظ…ط­ظ„ظٹط§ظ‹
                 val outputFile = File(cacheDir, "generated_video.mp4")
                 if (outputFile.exists()) outputFile.delete()
 
@@ -121,11 +119,11 @@ class MainActivity : AppCompatActivity() {
                     width = width,
                     height = height,
                     fps = 24,
-                    framesPerImage = 72, // 3 ط«ظˆط§ظ†ظٹ ظ„ظƒظ„ طµظˆط±ط© (24 * 3 = 72)
+                    framesPerImage = 72,
                     onProgress = { progress -> 
                         runOnUiThread { 
                             binding.progressBar.progress = progress
-                            binding.tvStatus.text = "ط¬ط§ط±ظٹ ط§ظ„ظ…ط¹ط§ظ„ط¬ط©: $progress%"
+                            binding.tvStatus.text = "جاري المعالجة: $progress%"
                         }
                     },
                     onDone = { success ->
@@ -138,7 +136,7 @@ class MainActivity : AppCompatActivity() {
                                 binding.videoView.visibility = View.VISIBLE
                                 binding.layoutButtons.visibility = View.VISIBLE
                                 binding.tvStatus.text = getString(R.string.done)
-                                binding.btnSave.performClick() // ط­ظپط¸ طھظ„ظ‚ط§ط¦ظٹ
+                                binding.btnSave.performClick()
                             } else {
                                 binding.tvStatus.text = getString(R.string.error)
                             }
@@ -188,7 +186,7 @@ class MainActivity : AppCompatActivity() {
             type = "video/mp4"
             putExtra(Intent.EXTRA_STREAM, uri)
         }
-        startActivity(Intent.createChooser(shareIntent, "ظ…ط´ط§ط±ظƒط© ط§ظ„ظپظٹط¯ظٹظˆ"))
+        startActivity(Intent.createChooser(shareIntent, "مشاركة الفيديو"))
     }
 
     private fun updateStatus(msg: String) {
