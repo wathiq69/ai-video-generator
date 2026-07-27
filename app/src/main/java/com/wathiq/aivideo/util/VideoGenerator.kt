@@ -34,7 +34,6 @@ class VideoGenerator {
                 onStatus("Sending request to AI...")
                 onProgress(10)
 
-                // Try multiple text-to-video models
                 val models = listOf(
                     "ali-vilab/model-scope-text-to-video",
                     "cerspense/zeroscope_v2_576w",
@@ -54,7 +53,6 @@ class VideoGenerator {
                 }
 
                 if (!success) {
-                    // Fallback: Generate image + animate with Pollinations
                     onStatus("Using fallback method...")
                     onProgress(50)
                     success = generateAnimatedFallback(prompt, outputFile, onStatus, onProgress)
@@ -98,7 +96,7 @@ class VideoGenerator {
                     onStatus("Downloading video...")
                     onProgress(80)
 
-                    val contentType = response.header("Content-Type", "")
+                    val contentType = response.header("Content-Type", "") ?: ""
                     
                     if (contentType.contains("video") || contentType.contains("octet-stream") || contentType.contains("binary")) {
                         val bytes = response.body?.bytes()
@@ -112,13 +110,12 @@ class VideoGenerator {
                             false
                         }
                     } else {
-                        // Might be JSON error
-                        val text = response.body?.string()
+                        val text = response.body?.string() ?: ""
                         Log.e(TAG, "Unexpected response: $text")
                         false
                     }
                 } else {
-                    Log.e(TAG, "HTTP ${response.code}: ${response.message}")
+                    Log.e(TAG, "HTTP ${response.code}: ${response.message ?: ""}")
                     false
                 }
             } catch (e: Exception) {
@@ -133,7 +130,6 @@ class VideoGenerator {
             onStatus: (String) -> Unit,
             onProgress: (Int) -> Unit
         ): Boolean {
-            // Fallback: Use Pollinations to get a single image, then create a video with motion
             return try {
                 onStatus("Generating image with Pollinations...")
                 onProgress(60)
@@ -155,12 +151,10 @@ class VideoGenerator {
                         onStatus("Creating video with motion effects...")
                         onProgress(80)
 
-                        // Create a video with zoom and pan effects
                         val bitmaps = mutableListOf<android.graphics.Bitmap>()
                         val width = 576
                         val height = 320
 
-                        // Create 5 frames with progressive zoom
                         for (i in 0..4) {
                             val zoom = 1.0f + 0.1f * i
                             val srcW = (width / zoom).toInt()
@@ -177,7 +171,6 @@ class VideoGenerator {
 
                         onProgress(90)
                         
-                        // Use MediaCodec to create video
                         createVideoFromBitmaps(bitmaps, outputFile, width, height, 8, 10, onProgress)
                     } else {
                         false
