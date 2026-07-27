@@ -1,19 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AI Video Maker</string>
-    <string name="app_subtitle">تحويل النص الى فيديو</string>
-    <string name="hint_prompt">اكتب وصف الفيديو هنا بالعربي او الانجليزي...</string>
-    <string name="btn_generate">توليد الفيديو</string>
-    <string name="btn_select_image">اختيار صورة</string>
-    <string name="btn_save">حفظ في الاستوديو</string>
-    <string name="btn_share">مشاركة</string>
-    <string name="portrait">عمودي</string>
-    <string name="landscape">افقي</string>
-    <string name="generating">جاري توليد الفيديو...</string>
-    <string name="done">تم بنجاح!</string>
-    <string name="error">حدث خطأ، حاول مرة اخرى</string>
-    <string name="no_image">لم يتم اختيار صورة</string>
-    <string name="image_selected">تم اختيار الصورة</string>
-    <string name="saved">تم الحفظ في الاستوديو</string>
-    <string name="permission_denied">تم رفض الاذن</string>
+    <string name="app_subtitle">Text &amp; Image to Video</string>
+    <string name="hint_prompt">Enter your video description here in English or Arabic...</string>
+    <string name="btn_generate">Generate Video</string>
+    <string name="btn_select_image">Select Image</string>
+    <string name="btn_save">Save to Studio</string>
+    <string name="btn_share">Share</string>
+    <string name="portrait">Portrait</string>
+    <string name="landscape">Landscape</string>
+    <string name="generating">Generating video...</string>
+    <string name="done">Done!</string>
+    <string name="error">An error occurred, please try again</string>
+    <string name="no_image">No image selected</string>
+    <string name="image_selected">Image selected</string>
+    <string name="saved">Saved to Studio</string>
+    <string name="permission_denied">Permission denied</string>
+    <string name="prompt_label">Description (Prompt)</string>
+    <string name="image_label">Image (Optional)</string>
+    <string name="orientation_label">Orientation</string>
+    <string name="enter_prompt">Please enter a description or select an image</string>
+    <string name="generating_image">Generating image %1$d of %2$d...</string>
+    <string name="merging_video">Merging images into video...</string>
+    <string name="processing">Processing: %1$d%%</string>
+    <string name="share_video">Share Video</string>
 </resources>
