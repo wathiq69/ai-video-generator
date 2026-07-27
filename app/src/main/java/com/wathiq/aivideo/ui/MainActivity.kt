@@ -1,6 +1,7 @@
 package com.wathiq.aivideo.ui
 
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -25,6 +26,9 @@ class MainActivity : AppCompatActivity() {
     private var selectedImageUri: Uri? = null
     private var generatedVideoPath: String? = null
 
+    // SharedPreferences to save the token
+    private val sharedPrefs by lazy { getSharedPreferences("AIVideoPrefs", Context.MODE_PRIVATE) }
+
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             selectedImageUri = uri
@@ -37,11 +41,21 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Load saved token if exists
+        val savedToken = sharedPrefs.getString("hf_token", "")
+        binding.etToken.setText(savedToken)
+
         binding.btnSelectImage.setOnClickListener { imagePicker.launch("image/*") }
 
         binding.btnGenerate.setOnClickListener {
             val prompt = binding.etPrompt.text.toString().trim()
             val token = binding.etToken.text.toString().trim()
+            
+            // Save token automatically
+            if (token.isNotEmpty()) {
+                sharedPrefs.edit().putString("hf_token", token).apply()
+            }
+
             if (prompt.isEmpty() && selectedImageUri == null) {
                 Toast.makeText(this, R.string.enter_prompt, Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
