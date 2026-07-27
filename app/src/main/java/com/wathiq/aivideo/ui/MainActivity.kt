@@ -4,6 +4,9 @@ import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -49,7 +52,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnGenerate.setOnClickListener {
             val prompt = binding.etPrompt.text.toString().trim()
             if (prompt.isEmpty() && selectedImageUri == null) {
-                Toast.makeText(this, "الرجاء كتابة وصف أو اختيار صورة", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.enter_prompt, Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             generateVideo(prompt)
@@ -61,6 +64,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun generateVideo(prompt: String) {
         binding.progressBar.visibility = View.VISIBLE
+        binding.progressBar.progress = 0
         binding.btnGenerate.isEnabled = false
         binding.tvStatus.text = getString(R.string.generating)
         binding.tvStatus.visibility = View.VISIBLE
@@ -75,41 +79,56 @@ class MainActivity : AppCompatActivity() {
             val bitmaps = mutableListOf<Bitmap>()
             try {
                 withContext(Dispatchers.IO) {
+                    // 1. Add user image if exists
                     selectedImageUri?.let { uri ->
                         val inputStream = contentResolver.openInputStream(uri)
                         val bmp = BitmapFactory.decodeStream(inputStream)
                         bmp?.let { bitmaps.add(it) }
                     }
 
+                    // 2. Generate images from Pollinations AI
                     val framesNeeded = 4 - bitmaps.size
                     for (i in 1..framesNeeded.coerceAtLeast(3)) {
                         val seed = Random.nextInt(1000, 9999)
                         val encodedPrompt = URLEncoder.encode(if (prompt.isEmpty()) "cinematic shot, abstract art" else prompt, "UTF-8")
                         val apiUrl = "https://image.pollinations.ai/prompt/$encodedPrompt?width=$width&height=$height&seed=$seed&nologo=true"
                         
-                        updateStatus("جاري توليد الصورة $i من 3...")
+                        updateStatus(getString(R.string.generating_image, i, framesNeeded.coerceAtLeast(3)))
                         
-                        val url = URL(apiUrl)
-                        val conn = url.openConnection() as HttpURLConnection
-                        conn.connectTimeout = 60000
-                        conn.readTimeout = 60000
-                        conn.instanceFollowRedirects = true
-                        
-                        if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                            val input: InputStream = conn.inputStream
-                            val bmp = BitmapFactory.decodeStream(input)
-                            if (bmp != null) bitmaps.add(bmp)
+                        try {
+                            val url = URL(apiUrl)
+                            val conn = url.openConnection() as HttpURLConnection
+                            conn.connectTimeout = 30000
+                            conn.readTimeout = 30000
+                            conn.instanceFollowRedirects = true
+                            
+                            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                                val input: InputStream = conn.inputStream
+                                val bmp = BitmapFactory.decodeStream(input)
+                                if (bmp != null) {
+                                    bitmaps.add(bmp)
+                                }
+                            }
+                            conn.disconnect()
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Image $i failed: ${e.message}")
                         }
-                        conn.disconnect()
+                        
+                        // If image failed, add a placeholder
+                        if (bitmaps.size < i) {
+                            val placeholder = createPlaceholderBitmap(width, height, "Frame $i")
+                            bitmaps.add(placeholder)
+                        }
                     }
                 }
 
                 if (bitmaps.isEmpty()) {
-                    throw Exception("لم يتم توليد أي صور")
+                    throw Exception("No images generated")
                 }
 
-                updateStatus("جاري دمج الصور في فيديو...")
+                updateStatus(getString(R.string.merging_video))
                 
+                // 3. Generate video locally
                 val outputFile = File(cacheDir, "generated_video.mp4")
                 if (outputFile.exists()) outputFile.delete()
 
@@ -119,11 +138,11 @@ class MainActivity : AppCompatActivity() {
                     width = width,
                     height = height,
                     fps = 24,
-                    framesPerImage = 72,
+                    framesPerImage = 72, // 3 seconds per image
                     onProgress = { progress -> 
                         runOnUiThread { 
                             binding.progressBar.progress = progress
-                            binding.tvStatus.text = "جاري المعالجة: $progress%"
+                            binding.tvStatus.text = getString(R.string.processing, progress)
                         }
                     },
                     onDone = { success ->
@@ -157,6 +176,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun createPlaceholderBitmap(width: Int, height: Int, text: String): Bitmap {
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawColor(Color.parseColor("#1A1A2E"))
+        val paint = Paint().apply {
+            color = Color.WHITE
+            textSize = 48f
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        canvas.drawText(text, width / 2f, height / 2f, paint)
+        return bmp
+    }
+
     private fun saveVideoToGallery() {
         val path = generatedVideoPath ?: return
         val values = ContentValues().apply {
@@ -186,7 +219,7 @@ class MainActivity : AppCompatActivity() {
             type = "video/mp4"
             putExtra(Intent.EXTRA_STREAM, uri)
         }
-        startActivity(Intent.createChooser(shareIntent, "مشاركة الفيديو"))
+        startActivity(Intent.createChooser(shareIntent, getString(R.string.share_video)))
     }
 
     private fun updateStatus(msg: String) {
