@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AI Video Maker</string>
-    <string name="app_subtitle">طھط­ظˆظٹظ„ ط§ظ„ظ†طµ ط§ظ„ظ‰ ظپظٹط¯ظٹظˆ</string>
-    <string name="hint_prompt">ط§ظƒطھط¨ ظˆطµظپ ط§ظ„ظپظٹط¯ظٹظˆ ظ‡ظ†ط§ ط¨ط§ظ„ط¹ط±ط¨ظٹ ط§ظˆ ط§ظ„ط§ظ†ط¬ظ„ظٹط²ظٹ...</string>
-    <string name="btn_generate">طھظˆظ„ظٹط¯ ط§ظ„ظپظٹط¯ظٹظˆ</string>
-    <string name="btn_select_image">ط§ط®طھظٹط§ط± طµظˆط±ط©</string>
-    <string name="btn_save">ط­ظپط¸ ظپظٹ ط§ظ„ط§ط³طھظˆط¯ظٹظˆ</string>
-    <string name="btn_share">ظ…ط´ط§ط±ظƒط©</string>
-    <string name="portrait">ط¹ظ…ظˆط¯ظٹ</string>
-    <string name="landscape">ط§ظپظ‚ظٹ</string>
-    <string name="generating">ط¬ط§ط±ظٹ طھظˆظ„ظٹط¯ ط§ظ„ظپظٹط¯ظٹظˆ...</string>
-    <string name="done">طھظ… ط¨ظ†ط¬ط§ط­!</string>
-    <string name="error">ط­ط¯ط« ط®ط·ط£طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط§ط®ط±ظ‰</string>
-    <string name="no_image">ظ„ظ… ظٹطھظ… ط§ط®طھظٹط§ط± طµظˆط±ط©</string>
-    <string name="image_selected">طھظ… ط§ط®طھظٹط§ط± ط§ظ„طµظˆط±ط©</string>
-    <string name="saved">طھظ… ط§ظ„ط­ظپط¸ ظپظٹ ط§ظ„ط§ط³طھظˆط¯ظٹظˆ</string>
-    <string name="permission_denied">طھظ… ط±ظپط¶ ط§ظ„ط§ط°ظ†</string>
+    <string name="app_subtitle">تحويل النص الى فيديو</string>
+    <string name="hint_prompt">اكتب وصف الفيديو هنا بالعربي او الانجليزي...</string>
+    <string name="btn_generate">توليد الفيديو</string>
+    <string name="btn_select_image">اختيار صورة</string>
+    <string name="btn_save">حفظ في الاستوديو</string>
+    <string name="btn_share">مشاركة</string>
+    <string name="portrait">عمودي</string>
+    <string name="landscape">افقي</string>
+    <string name="generating">جاري توليد الفيديو...</string>
+    <string name="done">تم بنجاح!</string>
+    <string name="error">حدث خطأ، حاول مرة اخرى</string>
+    <string name="no_image">لم يتم اختيار صورة</string>
+    <string name="image_selected">تم اختيار الصورة</string>
+    <string name="saved">تم الحفظ في الاستوديو</string>
+    <string name="permission_denied">تم رفض الاذن</string>
 </resources>
