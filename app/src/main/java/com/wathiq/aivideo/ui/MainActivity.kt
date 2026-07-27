@@ -4,9 +4,6 @@ import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -23,6 +20,7 @@ import com.wathiq.aivideo.util.VideoGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -48,21 +46,22 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         binding.btnSelectImage.setOnClickListener { imagePicker.launch("image/*") }
-        
+
         binding.btnGenerate.setOnClickListener {
             val prompt = binding.etPrompt.text.toString().trim()
+            val token = binding.etToken.text.toString().trim()
             if (prompt.isEmpty() && selectedImageUri == null) {
                 Toast.makeText(this, R.string.enter_prompt, Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            generateVideo(prompt)
+            generateVideo(prompt, token)
         }
 
         binding.btnSave.setOnClickListener { saveVideoToGallery() }
         binding.btnShare.setOnClickListener { shareVideo() }
     }
 
-    private fun generateVideo(prompt: String) {
+    private fun generateVideo(prompt: String, hfToken: String) {
         binding.progressBar.visibility = View.VISIBLE
         binding.progressBar.progress = 0
         binding.btnGenerate.isEnabled = false
@@ -83,41 +82,34 @@ class MainActivity : AppCompatActivity() {
                     selectedImageUri?.let { uri ->
                         val inputStream = contentResolver.openInputStream(uri)
                         val bmp = BitmapFactory.decodeStream(inputStream)
-                        bmp?.let { bitmaps.add(it) }
+                        if (bmp != null) {
+                            bitmaps.add(bmp)
+                            updateStatus("User image loaded")
+                        }
                     }
 
-                    // 2. Generate images from Pollinations AI
-                    val framesNeeded = 4 - bitmaps.size
-                    for (i in 1..framesNeeded.coerceAtLeast(3)) {
+                    // 2. Generate images using HF API or Pollinations
+                    val useHF = hfToken.isNotEmpty() && hfToken.startsWith("hf_")
+                    val imageCount = 3 - bitmaps.size
+
+                    for (i in 1..imageCount.coerceAtLeast(2)) {
                         val seed = Random.nextInt(1000, 9999)
-                        val encodedPrompt = URLEncoder.encode(if (prompt.isEmpty()) "cinematic shot, abstract art" else prompt, "UTF-8")
-                        val apiUrl = "https://image.pollinations.ai/prompt/$encodedPrompt?width=$width&height=$height&seed=$seed&nologo=true"
-                        
-                        updateStatus(getString(R.string.generating_image, i, framesNeeded.coerceAtLeast(3)))
-                        
-                        try {
-                            val url = URL(apiUrl)
-                            val conn = url.openConnection() as HttpURLConnection
-                            conn.connectTimeout = 30000
-                            conn.readTimeout = 30000
-                            conn.instanceFollowRedirects = true
-                            
-                            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                                val input: InputStream = conn.inputStream
-                                val bmp = BitmapFactory.decodeStream(input)
-                                if (bmp != null) {
-                                    bitmaps.add(bmp)
-                                }
-                            }
-                            conn.disconnect()
-                        } catch (e: Exception) {
-                            Log.e("MainActivity", "Image $i failed: ${e.message}")
+                        updateStatus(getString(R.string.generating_image, i, imageCount.coerceAtLeast(2)))
+
+                        val bmp = if (useHF) {
+                            generateImageWithHF(prompt, width, height, seed, hfToken)
+                        } else {
+                            generateImageWithPollinations(prompt, width, height, seed)
                         }
-                        
-                        // If image failed, add a placeholder
-                        if (bitmaps.size < i) {
-                            val placeholder = createPlaceholderBitmap(width, height, "Frame $i")
-                            bitmaps.add(placeholder)
+
+                        if (bmp != null) {
+                            bitmaps.add(bmp)
+                        } else {
+                            // Fallback: try Pollinations if HF fails
+                            val fallback = generateImageWithPollinations(prompt, width, height, seed)
+                            if (fallback != null) {
+                                bitmaps.add(fallback)
+                            }
                         }
                     }
                 }
@@ -127,8 +119,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 updateStatus(getString(R.string.merging_video))
-                
-                // 3. Generate video locally
+
                 val outputFile = File(cacheDir, "generated_video.mp4")
                 if (outputFile.exists()) outputFile.delete()
 
@@ -138,9 +129,9 @@ class MainActivity : AppCompatActivity() {
                     width = width,
                     height = height,
                     fps = 24,
-                    framesPerImage = 72, // 3 seconds per image
-                    onProgress = { progress -> 
-                        runOnUiThread { 
+                    durationPerImageSec = 3,
+                    onProgress = { progress ->
+                        runOnUiThread {
                             binding.progressBar.progress = progress
                             binding.tvStatus.text = getString(R.string.processing, progress)
                         }
@@ -176,18 +167,57 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun createPlaceholderBitmap(width: Int, height: Int, text: String): Bitmap {
-        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        canvas.drawColor(Color.parseColor("#1A1A2E"))
-        val paint = Paint().apply {
-            color = Color.WHITE
-            textSize = 48f
-            textAlign = Paint.Align.CENTER
-            isAntiAlias = true
+    private fun generateImageWithHF(prompt: String, width: Int, height: Int, seed: Int, token: String): Bitmap? {
+        return try {
+            val apiUrl = "https://api-inference.huggingface.co/models/stable-diffusion-v1-5"
+            val url = URL(apiUrl)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.connectTimeout = 60000
+            conn.readTimeout = 60000
+            conn.doOutput = true
+
+            val jsonBody = JSONObject().apply {
+                put("inputs", if (prompt.isEmpty()) "cinematic shot, abstract art, seed $seed" else "$prompt, seed $seed")
+            }
+
+            conn.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray())
+            }
+
+            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                BitmapFactory.decodeStream(conn.inputStream)
+            } else {
+                Log.e("HF", "HTTP ${conn.responseCode}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("HF", "Error: ${e.message}")
+            null
         }
-        canvas.drawText(text, width / 2f, height / 2f, paint)
-        return bmp
+    }
+
+    private fun generateImageWithPollinations(prompt: String, width: Int, height: Int, seed: Int): Bitmap? {
+        return try {
+            val encodedPrompt = URLEncoder.encode(if (prompt.isEmpty()) "cinematic shot, abstract art" else prompt, "UTF-8")
+            val apiUrl = "https://image.pollinations.ai/prompt/$encodedPrompt?width=$width&height=$height&seed=$seed&nologo=true"
+
+            val url = URL(apiUrl)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 60000
+            conn.readTimeout = 60000
+            conn.instanceFollowRedirects = true
+
+            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                BitmapFactory.decodeStream(conn.inputStream)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun saveVideoToGallery() {
@@ -199,7 +229,7 @@ class MainActivity : AppCompatActivity() {
                 put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/AI_Video_Maker")
             }
         }
-        
+
         val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
         uri?.let {
             contentResolver.openOutputStream(it)?.use { out ->
