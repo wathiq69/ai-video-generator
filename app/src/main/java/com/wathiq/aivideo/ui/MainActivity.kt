@@ -2,8 +2,6 @@ package com.wathiq.aivideo.ui
 
 import android.content.ContentValues
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -20,13 +18,7 @@ import com.wathiq.aivideo.util.VideoGenerator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
-import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -70,153 +62,60 @@ class MainActivity : AppCompatActivity() {
         binding.videoView.visibility = View.GONE
         binding.layoutButtons.visibility = View.GONE
 
-        val isPortrait = binding.rbPortrait.isChecked
-        val width = if (isPortrait) 720 else 1280
-        val height = if (isPortrait) 1280 else 720
+        val finalPrompt = if (selectedImageUri != null) {
+            "$prompt, cinematic animation, motion, dynamic movement"
+        } else {
+            "$prompt, cinematic animation, motion, dynamic movement"
+        }
+
+        val effectiveToken = if (hfToken.isNotEmpty()) hfToken else ""
 
         lifecycleScope.launch {
-            val bitmaps = mutableListOf<Bitmap>()
             try {
-                withContext(Dispatchers.IO) {
-                    // 1. Add user image if exists
-                    selectedImageUri?.let { uri ->
-                        val inputStream = contentResolver.openInputStream(uri)
-                        val bmp = BitmapFactory.decodeStream(inputStream)
-                        if (bmp != null) {
-                            bitmaps.add(bmp)
-                            updateStatus("User image loaded")
-                        }
-                    }
-
-                    // 2. Generate images using HF API or Pollinations
-                    val useHF = hfToken.isNotEmpty() && hfToken.startsWith("hf_")
-                    val imageCount = 3 - bitmaps.size
-
-                    for (i in 1..imageCount.coerceAtLeast(2)) {
-                        val seed = Random.nextInt(1000, 9999)
-                        updateStatus(getString(R.string.generating_image, i, imageCount.coerceAtLeast(2)))
-
-                        val bmp = if (useHF) {
-                            generateImageWithHF(prompt, width, height, seed, hfToken)
-                        } else {
-                            generateImageWithPollinations(prompt, width, height, seed)
-                        }
-
-                        if (bmp != null) {
-                            bitmaps.add(bmp)
-                        } else {
-                            // Fallback: try Pollinations if HF fails
-                            val fallback = generateImageWithPollinations(prompt, width, height, seed)
-                            if (fallback != null) {
-                                bitmaps.add(fallback)
-                            }
-                        }
-                    }
-                }
-
-                if (bitmaps.isEmpty()) {
-                    throw Exception("No images generated")
-                }
-
-                updateStatus(getString(R.string.merging_video))
-
                 val outputFile = File(cacheDir, "generated_video.mp4")
                 if (outputFile.exists()) outputFile.delete()
 
-                VideoGenerator.generateVideo(
-                    bitmaps = bitmaps,
+                val success = VideoGenerator.generateVideoFromText(
+                    prompt = finalPrompt,
+                    hfToken = effectiveToken,
                     outputFile = outputFile,
-                    width = width,
-                    height = height,
-                    fps = 24,
-                    durationPerImageSec = 3,
-                    onProgress = { progress ->
-                        runOnUiThread {
-                            binding.progressBar.progress = progress
-                            binding.tvStatus.text = getString(R.string.processing, progress)
-                        }
+                    onStatus = { msg ->
+                        runOnUiThread { binding.tvStatus.text = msg }
                     },
-                    onDone = { success ->
-                        runOnUiThread {
-                            if (success) {
-                                generatedVideoPath = outputFile.absolutePath
-                                binding.videoView.setVideoPath(generatedVideoPath)
-                                binding.videoView.setOnPreparedListener { mp -> mp.isLooping = true }
-                                binding.videoView.start()
-                                binding.videoView.visibility = View.VISIBLE
-                                binding.layoutButtons.visibility = View.VISIBLE
-                                binding.tvStatus.text = getString(R.string.done)
-                                binding.btnSave.performClick()
-                            } else {
-                                binding.tvStatus.text = getString(R.string.error)
+                    onProgress = { progress ->
+                        runOnUiThread { 
+                            binding.progressBar.progress = progress
+                            if (progress < 100) {
+                                binding.tvStatus.text = "Processing: $progress%"
                             }
-                            binding.progressBar.visibility = View.GONE
-                            binding.btnGenerate.isEnabled = true
                         }
                     }
                 )
 
+                withContext(Dispatchers.Main) {
+                    if (success && outputFile.exists() && outputFile.length() > 1000) {
+                        generatedVideoPath = outputFile.absolutePath
+                        binding.videoView.setVideoPath(generatedVideoPath)
+                        binding.videoView.setOnPreparedListener { mp -> mp.isLooping = true }
+                        binding.videoView.start()
+                        binding.videoView.visibility = View.VISIBLE
+                        binding.layoutButtons.visibility = View.VISIBLE
+                        binding.tvStatus.text = getString(R.string.done)
+                        binding.btnSave.performClick()
+                    } else {
+                        binding.tvStatus.text = getString(R.string.error)
+                    }
+                    binding.progressBar.visibility = View.GONE
+                    binding.btnGenerate.isEnabled = true
+                }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error", e)
-                runOnUiThread {
+                withContext(Dispatchers.Main) {
                     binding.tvStatus.text = getString(R.string.error)
                     binding.progressBar.visibility = View.GONE
                     binding.btnGenerate.isEnabled = true
                 }
             }
-        }
-    }
-
-    private fun generateImageWithHF(prompt: String, width: Int, height: Int, seed: Int, token: String): Bitmap? {
-        return try {
-            val apiUrl = "https://api-inference.huggingface.co/models/stable-diffusion-v1-5"
-            val url = URL(apiUrl)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Authorization", "Bearer $token")
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.connectTimeout = 60000
-            conn.readTimeout = 60000
-            conn.doOutput = true
-
-            val jsonBody = JSONObject().apply {
-                put("inputs", if (prompt.isEmpty()) "cinematic shot, abstract art, seed $seed" else "$prompt, seed $seed")
-            }
-
-            conn.outputStream.use { os ->
-                os.write(jsonBody.toString().toByteArray())
-            }
-
-            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                BitmapFactory.decodeStream(conn.inputStream)
-            } else {
-                Log.e("HF", "HTTP ${conn.responseCode}")
-                null
-            }
-        } catch (e: Exception) {
-            Log.e("HF", "Error: ${e.message}")
-            null
-        }
-    }
-
-    private fun generateImageWithPollinations(prompt: String, width: Int, height: Int, seed: Int): Bitmap? {
-        return try {
-            val encodedPrompt = URLEncoder.encode(if (prompt.isEmpty()) "cinematic shot, abstract art" else prompt, "UTF-8")
-            val apiUrl = "https://image.pollinations.ai/prompt/$encodedPrompt?width=$width&height=$height&seed=$seed&nologo=true"
-
-            val url = URL(apiUrl)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 60000
-            conn.readTimeout = 60000
-            conn.instanceFollowRedirects = true
-
-            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                BitmapFactory.decodeStream(conn.inputStream)
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            null
         }
     }
 
@@ -250,9 +149,5 @@ class MainActivity : AppCompatActivity() {
             putExtra(Intent.EXTRA_STREAM, uri)
         }
         startActivity(Intent.createChooser(shareIntent, getString(R.string.share_video)))
-    }
-
-    private fun updateStatus(msg: String) {
-        runOnUiThread { binding.tvStatus.text = msg }
     }
 }
