@@ -62,13 +62,7 @@ class MainActivity : AppCompatActivity() {
         binding.videoView.visibility = View.GONE
         binding.layoutButtons.visibility = View.GONE
 
-        val finalPrompt = if (selectedImageUri != null) {
-            "$prompt, cinematic animation, motion, dynamic movement"
-        } else {
-            "$prompt, cinematic animation, motion, dynamic movement"
-        }
-
-        val effectiveToken = if (hfToken.isNotEmpty()) hfToken else ""
+        val finalPrompt = if (prompt.isEmpty()) "cinematic shot, abstract art" else prompt
 
         lifecycleScope.launch {
             try {
@@ -77,7 +71,7 @@ class MainActivity : AppCompatActivity() {
 
                 val success = VideoGenerator.generateVideoFromText(
                     prompt = finalPrompt,
-                    hfToken = effectiveToken,
+                    hfToken = hfToken,
                     outputFile = outputFile,
                     onStatus = { msg ->
                         runOnUiThread { binding.tvStatus.text = msg }
